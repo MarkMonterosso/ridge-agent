@@ -14,9 +14,19 @@ Runs locally on open tooling. Model-agnostic by configuration. Built to be reuse
 
 ### Status
 
-No code yet, on purpose. RIDGE is built one phase at a time (Define, Design, Boundaries, Decide, Plan, Build, Integrate, Operate), and each phase closes with a written decision before the next one starts. Define, Design, and Boundaries are closed. Decide (language, runtime, and which local model) is next.
+No code yet, on purpose. RIDGE is built one phase at a time (Define, Design, Boundaries, Decide, Plan, Build, Integrate, Operate), and each phase closes with a written decision before the next one starts. Define, Design, Boundaries, Decide, and Plan are closed. Build is next.
 
 Weekly progress is written up by hand until RIDGE can write it itself: [redmountainindustries.com/projects/ridge](https://www.redmountainindustries.com/projects/ridge)
+
+### Requirements
+
+Locked in during the Decide phase, ahead of any code:
+
+- Python 3.11+
+- [LM Studio](https://lmstudio.ai/) running locally, serving a local model over its OpenAI-compatible API
+- A GPU with roughly 16GB+ VRAM, enough to run a ~26B parameter model locally at a reasonable quantization
+
+Installation and configuration details land here once Build produces a real `requirements.txt` and entry point — not before.
 
 ### License
 
