@@ -20,8 +20,6 @@ Weekly progress is written up by hand until RIDGE can write it itself: [redmount
 
 ### Requirements
 
-Locked in during the Decide phase, ahead of any code:
-
 - Python 3.11+
 - [LM Studio](https://lmstudio.ai/) running locally, serving a local model over its OpenAI-compatible API
 - A GPU with roughly 16GB+ VRAM, enough to run a ~26B parameter model locally at a reasonable quantization
