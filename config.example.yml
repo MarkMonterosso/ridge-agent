@@ -1,0 +1,19 @@
+# ============================================================
+# config.example.yml
+#
+# Template for RIDGE's configuration. Copy this file to
+# config.yml and fill in your own values — config.yml is
+# gitignored and never committed, since it holds paths
+# specific to your own machine.
+# ============================================================
+
+# Path to a project archive folder — not the marker file
+# itself. RIDGE looks for that project's ridge.yml at the
+# root of whatever folder is listed here.
+#
+# You can list more than one project here, but right now RIDGE
+# only reads the first one in the list. Tracking several
+# projects at once is planned, not built yet.
+
+projects:
+  - ../path-to-your-project-archive

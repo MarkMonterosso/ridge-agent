@@ -14,7 +14,7 @@ Runs locally on open tooling. Model-agnostic by configuration. Built to be reuse
 
 ### Status
 
-No code yet, on purpose. RIDGE is built one phase at a time (Define, Design, Boundaries, Decide, Plan, Build, Integrate, Operate), and each phase closes with a written decision before the next one starts. Define, Design, Boundaries, Decide, and Plan are closed. Build is next.
+RIDGE is built one phase at a time (Define, Design, Boundaries, Decide, Plan, Build, Integrate, Operate), and each phase closes with a written decision before the next one starts. Define, Design, Boundaries, Decide, and Plan are closed. Build is underway: reading a project's archive is in progress. Right now RIDGE can load its config, find a project, and read that project's marker file, with clear error messages on anything missing or malformed. It doesn't yet look inside the archive's own folders.
 
 Weekly progress is written up by hand until RIDGE can write it itself: [redmountainindustries.com/projects/ridge](https://www.redmountainindustries.com/projects/ridge)
 
@@ -24,7 +24,32 @@ Weekly progress is written up by hand until RIDGE can write it itself: [redmount
 - [LM Studio](https://lmstudio.ai/) running locally, serving a local model over its OpenAI-compatible API
 - A GPU with roughly 16GB+ VRAM, enough to run a ~26B parameter model locally at a reasonable quantization
 
-Installation and configuration details land here once Build produces a real `requirements.txt` and entry point — not before.
+### Configuration
+
+RIDGE reads a `config.yml` file. Copy `config.example.yml` to `config.yml` to get started. `config.yml` is gitignored, since it holds paths specific to your own machine.
+
+`config.yml` lists the project archives RIDGE should track:
+
+```yaml
+projects:
+  - ../path-to-your-project-archive
+```
+
+You can list more than one project here, but right now RIDGE only reads the first one in the list. Tracking several projects in one run is planned, not built yet.
+
+Each listed folder is a project archive. It must contain a marker file, `ridge.yml`, at its root:
+
+```yaml
+id: my-project                  # stable identifier, never derived from the folder name
+name: My Project
+code_repo: ../my-project-code   # for git metadata (read-only)
+site_slug: my-project           # which site page this project writes to
+conventions:                    # optional — maps record types to folders
+  sessions: docs/sessions/
+  decisions: docs/decisions/
+```
+
+`conventions` is how RIDGE finds your session logs, decision records, and other authored files, without assuming any particular folder layout. Every project can name its own folders differently.
 
 ### License
 
