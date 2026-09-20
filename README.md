@@ -14,7 +14,9 @@ Runs locally on open tooling. Model-agnostic by configuration. Built to be reuse
 
 ### Status
 
-RIDGE is built one phase at a time (Define, Design, Boundaries, Decide, Plan, Build, Integrate, Operate), and each phase closes with a written decision before the next one starts. Define, Design, Boundaries, Decide, and Plan are closed. Build is underway: reading a project's archive is in progress. Right now RIDGE can load its config, find a project, and read that project's marker file, with clear error messages on anything missing or malformed. It doesn't yet look inside the archive's own folders.
+RIDGE is built one phase at a time (Define, Design, Boundaries, Decide, Plan, Build, Integrate, Operate), and each phase closes with a written decision before the next one starts. Define, Design, Boundaries, Decide, and Plan are closed. Build is underway.
+
+Right now RIDGE can load its config, find a project, and read that project's marker file. It then walks the archive's folders and reads every record it finds, checking each one for a required id and a real date. A record that fails that check is logged and skipped, not silently included. Two records that share the same id are also flagged. It doesn't yet read a project's git history, or write anything back out.
 
 Weekly progress is written up by hand until RIDGE can write it itself: [redmountainindustries.com/projects/ridge](https://www.redmountainindustries.com/projects/ridge)
 
@@ -23,6 +25,31 @@ Weekly progress is written up by hand until RIDGE can write it itself: [redmount
 - Python 3.11+
 - [LM Studio](https://lmstudio.ai/) running locally, serving a local model over its OpenAI-compatible API
 - A GPU with roughly 16GB+ VRAM, enough to run a ~26B parameter model locally at a reasonable quantization
+
+### Setup
+
+Install the runtime dependencies:
+
+```
+pip install -r requirements.txt
+```
+
+Contributing, or want to run the tests and linter yourself? Install the development dependencies instead — this includes everything in `requirements.txt`, plus `pytest` and `ruff`:
+
+```
+pip install -r requirements-dev.txt
+```
+
+### Project structure
+
+| File | What it does |
+| --- | --- |
+| `main.py` | Entry point. Parses command-line arguments and runs the pipeline in order. |
+| `config.py` | Reads `config.yml` and a tracked project's `ridge.yml` marker file. |
+| `records.py` | Walks a project's archive folders, validates each record, and checks for duplicate ids. |
+| `file_io.py` | Shared file-reading helper, used by `config.py` and `records.py`, that always reads as UTF-8. |
+| `tests/` | The test suite. One file per module above (`test_config.py`, `test_file_io.py`, `test_records.py`). |
+| `conftest.py` | Empty on purpose — its presence tells pytest where the project root is, so tests can import the modules above. |
 
 ### Configuration
 
@@ -50,6 +77,34 @@ conventions:                    # optional — maps record types to folders
 ```
 
 `conventions` is how RIDGE finds your session logs, decision records, and other authored files, without assuming any particular folder layout. Every project can name its own folders differently.
+
+### Usage
+
+```
+py main.py
+```
+
+Point at a different config file with `--config`:
+
+```
+py main.py --config path/to/other_config.yml
+```
+
+Output right now is a short console summary — how many valid records were found, and any duplicate ids. RIDGE doesn't generate or publish a field note yet.
+
+### Testing
+
+Run the test suite from the `ridge-agent` folder:
+
+```
+pytest
+```
+
+Check code style with the linter:
+
+```
+ruff check .
+```
 
 ### License
 

@@ -2,73 +2,19 @@
 # main.py
 # Entry point for RIDGE.
 #
-# Right now, this reads config.yml to find where a project's
-# archive lives, then reads and parses that project's ridge.yml
-# marker file. Any problem along the way, a missing file, no
-# permission to read it, or YAML that doesn't parse, stops the
-# program with a clear message instead of guessing or crashing
-# with a raw traceback.
+# Reads config.yml to find where a project's archive lives, reads
+# that project's ridge.yml marker file, then walks the archive and
+# reads every record it finds, validating each one and flagging
+# any duplicate ids.
 #
-# Not built yet: actually looking inside the archive's folders
-# (sessions, decisions) and reading what's in them.
+# Not built yet: reading the project's git history (M2), and
+# writing the generated field note back out (M6).
 # ============================================================
 import argparse
-import sys
 from pathlib import Path
-import yaml
 
-
-def load_config(config_path):
-    # Read the config file. Stop clearly if it's missing or unreadable.
-    try:
-        with open(config_path) as config_file:
-            config_contents = config_file.read()
-    except FileNotFoundError:
-        print(f"Config file not found: {config_path}")
-        sys.exit(1)
-    except PermissionError:
-        print(f"Permission denied when trying to read config file: {config_path}")
-        sys.exit(1)
-
-    # Turn the config text into a usable dictionary. Stop clearly if
-    # the YAML in it doesn't actually parse.
-    try:
-        config_data = yaml.safe_load(config_contents)
-    except yaml.YAMLError as err:
-        print(f"Error parsing config file: {err}")
-        sys.exit(1)
-
-    # Stop clearly if the config has no projects listed at all.
-    if "projects" not in config_data or not config_data["projects"]:
-        print("No projects found in the configuration file.")
-        sys.exit(1)
-
-    return config_data
-
-
-def read_marker(marker_path):
-    # Read that project's marker file. Stop clearly if it's missing
-    # or unreadable.
-    try:
-        with open(marker_path) as marker_file:
-            marker_contents = marker_file.read()
-    except FileNotFoundError:
-        print(f"Marker file not found: {marker_path}")
-        sys.exit(1)
-    except PermissionError:
-        print(f"Permission denied when trying to read marker file: {marker_path}")
-        sys.exit(1)
-
-    # Turn the marker text into a usable dictionary. Stop clearly if
-    # the YAML in it doesn't actually parse.
-    try:
-        marker_data = yaml.safe_load(marker_contents)
-    except yaml.YAMLError as err:
-        print(f"Error parsing marker file: {err}")
-        sys.exit(1)
-
-    return marker_data
-
+from config import load_config, read_marker
+from records import discover_records, find_duplicate_records
 
 if __name__ == "__main__":
     # --config lets you point at a different config file. Left
@@ -82,5 +28,15 @@ if __name__ == "__main__":
     config_data = load_config(args.config)
     project_location = config_data["projects"][0]
     marker_path = Path(project_location) / "ridge.yml"
+    conventions = read_marker(marker_path)["conventions"]
+    records = discover_records(project_location, conventions)
+    duplicate_ids = find_duplicate_records(records)
 
-    print(read_marker(marker_path))
+    # A short, human-readable summary of the run — not the full record
+    # dump. This is a manual smoke check against your real archive,
+    # not a substitute for the unit tests in test_main.py.
+    print(f"Discovered {len(records)} valid records in project at {project_location}.")
+    if duplicate_ids:
+        print(f"Found {len(duplicate_ids)} duplicate id(s): {[r.get('id') for r in duplicate_ids]}")
+    else:
+        print("No duplicate ids found.")

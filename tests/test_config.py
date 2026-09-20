@@ -1,13 +1,12 @@
 # ============================================================
-# test_main.py
-# Tests for the functions in main.py: load_config and
-# read_marker. Covers a missing file, bad YAML, and the happy
-# path for each, plus load_config's extra check for a missing
-# "projects" key.
+# test_config.py
+# Tests for load_config and read_marker in config.py. Covers a
+# missing file, bad YAML, and the happy path for each, plus
+# load_config's extra check for a missing "projects" key.
 # ============================================================
 import pytest
-from main import load_config
-from main import read_marker
+
+from config import load_config, read_marker
 
 
 # load_config should stop the program if the file it's given
