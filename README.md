@@ -18,6 +18,8 @@ RIDGE is built one phase at a time (Define, Design, Boundaries, Decide, Plan, Bu
 
 Right now RIDGE can load its config, find a project, and read that project's marker file. It then walks the archive's folders and reads every record it finds, checking each one for a required id and a real date. A record that fails that check is logged and skipped, not silently included. Two records that share the same id are also flagged. It doesn't yet read a project's git history, or write anything back out.
 
+See it running for real, with real output, against a small public sample archive: [ridge-agent-demo](https://github.com/MarkMonterosso/ridge-agent-demo).
+
 Weekly progress is written up by hand until RIDGE can write it itself: [redmountainindustries.com/projects/ridge](https://www.redmountainindustries.com/projects/ridge)
 
 ### Requirements
