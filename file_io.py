@@ -5,9 +5,9 @@
 # open_utf8_file() opens a file the same way everywhere: always
 # as UTF-8, and hands back the file's contents wrapped in an
 # in-memory buffer, so the real file on disk closes immediately
-# instead of staying open for the caller to manage. Any problem
-# opening it (missing file, no permission, anything else) stops
-# the program with a clear message instead of a raw traceback.
+# instead of staying open for the caller to manage. If it can't
+# open the file at all, it stops the program with a clear
+# message instead of a raw traceback.
 # ============================================================
 import sys
 from io import StringIO

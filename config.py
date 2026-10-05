@@ -2,10 +2,9 @@
 # config.py
 # Reads RIDGE's own config.yml (which projects to track) and a
 # tracked project's ridge.yml marker file (where that project's
-# records live). Any problem along the way, a missing file, no
-# permission to read it, or YAML that doesn't parse, stops the
-# program with a clear message instead of guessing or crashing
-# with a raw traceback.
+# records live). If either file can't be read or parsed, the
+# program stops with a clear message instead of crashing with a
+# raw traceback.
 # ============================================================
 import sys
 

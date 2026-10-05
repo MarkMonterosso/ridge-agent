@@ -7,13 +7,21 @@
 # specific to your own machine.
 # ============================================================
 
-# Path to a project archive folder — not the marker file
-# itself. RIDGE looks for that project's ridge.yml at the
-# root of whatever folder is listed here.
+# Each project needs:
+#   project_path           the project's archive folder, not the
+#                           marker file itself — RIDGE looks for
+#                           that project's ridge.yml at the root
+#                           of whatever folder this points to
+#   data_collection_range   how far back to look for git activity
 #
-# You can list more than one project here, but right now RIDGE
-# only reads the first one in the list. Tracking several
-# projects at once is planned, not built yet.
+# data_collection_range is handed straight to Python's timedelta,
+# so its keys are whatever timedelta itself accepts: weeks, days,
+# hours, minutes, seconds.
+#
+# List as many projects as you want — RIDGE runs this same
+# pipeline once for every project in the list.
 
 projects:
-  - ../path-to-your-project-archive
+  - project_path: ../path-to-your-project-archive
+    data_collection_range:
+      weeks: 1

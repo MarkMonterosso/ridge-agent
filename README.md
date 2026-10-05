@@ -16,7 +16,7 @@ Runs locally on open tooling. Model-agnostic by configuration. Built to be reuse
 
 RIDGE is built one phase at a time (Define, Design, Boundaries, Decide, Plan, Build, Integrate, Operate), and each phase closes with a written decision before the next one starts. Define, Design, Boundaries, Decide, and Plan are closed. Build is underway.
 
-Right now RIDGE can load its config, find a project, and read that project's marker file. It then walks the archive's folders and reads every record it finds, checking each one for a required id and a real date. A record that fails that check is logged and skipped, not silently included. Two records that share the same id are also flagged. It doesn't yet read a project's git history, or write anything back out.
+Right now RIDGE can load its config and run its full pipeline for every project listed in it. For each project, it finds that project's marker file, walks the archive's folders, and reads every record it finds, checking each one for a required id and a real date. A record that fails that check is logged and skipped, not silently included. Two records that share the same id are also flagged. It also reads that project's git history for a configured lookback window and reports how many commits it found. RIDGE doesn't write anything back out yet.
 
 See it running for real, with real output, against a small public sample archive: [ridge-agent-demo](https://github.com/MarkMonterosso/ridge-agent-demo).
 
@@ -50,7 +50,8 @@ pip install -r requirements-dev.txt
 | `config.py` | Reads `config.yml` and a tracked project's `ridge.yml` marker file. |
 | `records.py` | Walks a project's archive folders, validates each record, and checks for duplicate ids. |
 | `file_io.py` | Shared file-reading helper, used by `config.py` and `records.py`, that always reads as UTF-8. |
-| `tests/` | The test suite. One file per module above (`test_config.py`, `test_file_io.py`, `test_records.py`). |
+| `git_history.py` | Reads recent commit history from a project's code repo. |
+| `tests/` | The test suite. One file per module above (`test_config.py`, `test_file_io.py`, `test_records.py`, `test_git_history.py`). |
 | `conftest.py` | Empty on purpose — its presence tells pytest where the project root is, so tests can import the modules above. |
 
 ### Configuration
@@ -61,17 +62,21 @@ RIDGE reads a `config.yml` file. Copy `config.example.yml` to `config.yml` to ge
 
 ```yaml
 projects:
-  - ../path-to-your-project-archive
+  - project_path: ../path-to-your-project-archive
+    data_collection_range:
+      weeks: 1
 ```
 
-You can list more than one project here, but right now RIDGE only reads the first one in the list. Tracking several projects in one run is planned, not built yet.
+Each project needs a `project_path` (its archive folder, not the marker file itself) and a `data_collection_range` saying how far back to look for git activity. `data_collection_range` is handed straight to Python's `timedelta`, so it accepts whatever `timedelta` does — `weeks`, `days`, `hours`, and so on. List as many projects as you want; RIDGE runs the same pipeline for each one.
 
 Each listed folder is a project archive. It must contain a marker file, `ridge.yml`, at its root:
 
 ```yaml
 id: my-project                  # stable identifier, never derived from the folder name
 name: My Project
-code_repo: ../my-project-code   # for git metadata (read-only)
+git_repo: ../my-project-code    # optional, for git metadata. If set, RIDGE expects it
+                                 # to work — a bad or missing path fails loudly rather
+                                 # than being silently skipped.
 site_slug: my-project           # which site page this project writes to
 conventions:                    # optional — maps record types to folders
   sessions: docs/sessions/
@@ -92,7 +97,17 @@ Point at a different config file with `--config`:
 py main.py --config path/to/other_config.yml
 ```
 
-Output right now is a short console summary — how many valid records were found, and any duplicate ids. RIDGE doesn't generate or publish a field note yet.
+Output right now is a short console summary per project — how many git commits were found in the lookback window, how many valid records were found, and any duplicate ids. RIDGE doesn't generate or publish a field note yet.
+
+### Logging conventions
+
+RIDGE tags its own console output so you can tell what matters at a glance:
+
+- `[INF]` — informational, nothing's wrong (e.g. no commits found in a window)
+- `[WRN]` — worth a look, but not fatal
+- `[ERR]` — something's actually broken
+
+A real misconfiguration (a bad `git_repo` path, a missing `config.yml`) exits the program outright rather than logging `[ERR]` and continuing.
 
 ### Testing
 
