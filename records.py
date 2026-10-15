@@ -27,16 +27,16 @@ def validate_record(metadata):
     try:
         # No id means the record can never be referenced or checked
         # for duplicates later, so it's rejected rather than guessed.
-        if 'id' not in metadata or metadata.get('id') is None:
-            return ("Record is missing 'id' in metadata.")
+        if "id" not in metadata or metadata.get("id") is None:
+            return "Record is missing 'id' in metadata."
         # The date has to be a real date, not just present. YAML
         # auto-parses a valid YYYY-MM-DD into an actual date object;
         # anything else, including a literal "YYYY-MM-DD" left over
         # in an unfilled template, stays plain text and fails here.
-        if isinstance(metadata.get('date'), date) is False:
-            return ("Record is missing 'date' in metadata.")
+        if isinstance(metadata.get("date"), date) is False:
+            return "Record is missing 'date' in metadata."
     except AttributeError as err:
-        return (f"Error validating record metadata: {err}")
+        return f"Error validating record metadata: {err}"
     return None
 
 
@@ -51,7 +51,7 @@ def discover_records(project_location, conventions):
             print(f"Folder does not exist: {folder}")
             continue
         for record_file in folder.glob("*.md"):
-            with open_utf8_file(record_file, 'r') as file:
+            with open_utf8_file(record_file, "r") as file:
                 try:
                     post = frontmatter.load(file)
                 except yaml.YAMLError as err:
@@ -59,7 +59,9 @@ def discover_records(project_location, conventions):
                     # whole archive read. Skip it, but loudly — this
                     # is a data problem worth someone's attention,
                     # not something to bury in the regular output.
-                    print(f"!!! SKIPPING {record_file} — malformed YAML frontmatter: {err}")
+                    print(
+                        f"!!! SKIPPING {record_file} — malformed YAML frontmatter: {err}"
+                    )
                     continue
                 validation_error = validate_record(post.metadata)
                 if validation_error:
@@ -79,7 +81,7 @@ def find_duplicate_records(records):
     all_found_ids = set()
     duplicates = []
     for record in records:
-        record_id = record.get('id')
+        record_id = record.get("id")
         if record_id in all_found_ids:
             duplicates.append(record)
         else:

@@ -12,6 +12,10 @@ Output is a pull request. A human reviews and merges. RIDGE does not publish, do
 
 Runs locally on open tooling. Model-agnostic by configuration. Built to be reused across projects.
 
+### Why this exists
+
+This project is also how I'm teaching myself to build an agent — from the ground up, using a real need instead of a toy example. That's the actual goal; RIDGE supporting [redmountainindustries.com](https://www.redmountainindustries.com) is the real need that keeps the learning grounded instead of abstract.
+
 ### Status
 
 RIDGE is built one phase at a time (Define, Design, Boundaries, Decide, Plan, Build, Integrate, Operate), and each phase closes with a written decision before the next one starts. Define, Design, Boundaries, Decide, and Plan are closed. Build is underway.
@@ -74,9 +78,12 @@ Each listed folder is a project archive. It must contain a marker file, `ridge.y
 ```yaml
 id: my-project                  # stable identifier, never derived from the folder name
 name: My Project
-git_repo: ../my-project-code    # optional, for git metadata. If set, RIDGE expects it
-                                 # to work — a bad or missing path fails loudly rather
-                                 # than being silently skipped.
+git_repo: ../my-project-code    # optional, for git metadata. Leave the key out entirely
+                                 # if this project doesn't track git history. If you add
+                                 # it, it can't be left blank — once it's set, RIDGE
+                                 # expects it to work, so a bad path, a missing path, or
+                                 # an empty value all fail loudly rather than being
+                                 # silently skipped.
 site_slug: my-project           # which site page this project writes to
 conventions:                    # optional — maps record types to folders
   sessions: docs/sessions/
