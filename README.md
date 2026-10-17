@@ -20,7 +20,7 @@ This project is also how I'm teaching myself to build an agent — from the grou
 
 RIDGE is built one phase at a time (Define, Design, Boundaries, Decide, Plan, Build, Integrate, Operate), and each phase closes with a written decision before the next one starts. Define, Design, Boundaries, Decide, and Plan are closed. Build is underway.
 
-Right now RIDGE can load its config and run its full pipeline for every project listed in it. For each project, it finds that project's marker file, walks the archive's folders, and reads every record it finds, checking each one for a required id and a real date. A record that fails that check is logged and skipped, not silently included. Two records that share the same id are also flagged. It also reads that project's git history for a configured lookback window and reports how many commits it found. RIDGE doesn't write anything back out yet.
+Right now RIDGE can check its own setup, and run its pipeline for every project listed in its config. For each project, it finds that project's marker file and reads every record in the folders the marker lists. It works out what type each record is (a session, a decision, a milestone) and checks that it has the fields that type needs. A record that fails the check is skipped, and RIDGE prints which file and why. Two records that share the same id are also flagged. It also reads that project's git history for a configured lookback window and reports how many commits it found. RIDGE doesn't write anything back out yet.
 
 See it running for real, with real output, against a small public sample archive: [ridge-agent-demo](https://github.com/MarkMonterosso/ridge-agent-demo).
 
@@ -32,18 +32,162 @@ Weekly progress is written up by hand until RIDGE can write it itself: [redmount
 - [LM Studio](https://lmstudio.ai/) running locally, serving a local model over its OpenAI-compatible API
 - A GPU with roughly 16GB+ VRAM, enough to run a ~26B parameter model locally at a reasonable quantization
 
-### Setup
+## Using RIDGE
 
-Install the runtime dependencies:
+### 1. Install it
 
 ```
 pip install -r requirements.txt
 ```
 
-Contributing, or want to run the tests and linter yourself? Install the development dependencies instead — this includes everything in `requirements.txt`, plus `pytest` and `ruff`:
+### 2. Get the demo project
+
+RIDGE needs a project to read. Start with the public demo,
+[ridge-agent-demo](https://github.com/MarkMonterosso/ridge-agent-demo).
+Clone it into the same parent folder as `ridge-agent`, so the two
+sit side by side:
+
+```
+your-folder/
+  ridge-agent/
+  ridge-agent-demo/
+```
+
+### 3. Make your config file
+
+Copy `config.example.yml` to `config.yml`. The example already
+points at the demo, so you don't need to change anything yet.
+`config.yml` is gitignored, because it holds paths for your own
+machine.
+
+If you skip this step, RIDGE stops with `File not found: config.yml`.
+
+### 4. Check your setup
+
+```
+py main.py --check
+```
+
+This checks your setup without running anything else. For each
+project in `config.yml` it checks that:
+
+- the project folder exists and has a `ridge.yml`
+- `ridge.yml` has an `id`
+- `git_repo` is either left out, or points at a real git repo
+- each folder listed under `conventions` exists
+
+It also lists every record file RIDGE would skip, and why. Each line
+is tagged:
+
+- `[ERR]` RIDGE can't run until you fix this
+- `[WRN]` RIDGE will run, but take a look
+- `[INF]` just so you know
+
+On the demo you'll see two `[WRN]` lines. Those are two sample files
+that are broken on purpose. The check ends with "Setup looks good"
+when there are no `[ERR]` lines. If there are any, it exits with
+code 1, so a script can tell the check didn't pass.
+
+### 5. Run it
+
+```
+py main.py
+```
+
+To use a config file somewhere else:
+
+```
+py main.py --config path/to/other_config.yml
+```
+
+Right now RIDGE prints a short summary for each project: how many
+git commits it found in the lookback window, how many valid records
+it found, and any duplicate ids. It doesn't write a field note yet.
+
+### 6. Point it at your own project
+
+Once the demo works, edit `project_path` in your `config.yml` to
+point at your own project folder, then run `py main.py --check`
+again:
+
+```yaml
+projects:
+  - project_path: ../path-to-your-project
+    data_collection_range:
+      weeks: 1
+```
+
+- `project_path` is the project's folder. RIDGE looks for a
+  `ridge.yml` file at the top of it. A relative path like
+  `../my-project` starts from the folder `config.yml` is in.
+- `data_collection_range` says how far back to look for git
+  activity. RIDGE hands it straight to Python's `timedelta`, so you
+  can use `weeks`, `days`, `hours`, and so on.
+- List as many projects as you like. RIDGE runs the same steps for
+  each one.
+
+Your project folder needs a `ridge.yml` at its top level. The demo's
+`ridge.yml` is a working example to copy:
+
+```yaml
+id: my-project                  # never changes, even if you rename the folder
+name: My Project
+git_repo: ../my-project-code    # optional. Leave this line out if the project
+                                 # has no git repo. If you include it, it has to
+                                 # point at a real repo, or RIDGE stops and tells
+                                 # you which project is wrong.
+site_slug: my-project           # which page on the site this project writes to
+conventions:                    # optional. Tells RIDGE which folder holds
+  session: docs/sessions/       # which kind of record.
+  decision: docs/decisions/
+  milestone: docs/milestones/
+```
+
+`conventions` is how RIDGE finds your records without assuming a
+folder layout. Each line names a record type, then the folder that
+holds it. Name your folders whatever you want. If a record file has
+no `type:` line, RIDGE uses the type of the folder it's in. A folder that doesn't exist yet is fine, because a new project
+may not have any records of that kind.
+
+## Developing RIDGE
+
+### Install the development tools
 
 ```
 pip install -r requirements-dev.txt
+```
+
+This installs everything in `requirements.txt`, plus `pytest` and
+`ruff`.
+
+### Run the tests
+
+The tests read `config.example.yml` and follow it to the demo
+project, the same way RIDGE follows `config.yml` on a real run. So
+you need `ridge-agent-demo` cloned next to `ridge-agent` (step 2
+above) before the tests will run. Leave `config.example.yml` pointed
+at the demo when you commit it.
+
+From the `ridge-agent` folder:
+
+```
+pytest
+```
+
+To run only some tests, use `-k` with part of their name:
+
+```
+pytest tests/test_records.py -k milestone
+```
+
+Some tests check the demo's sample files by id, so if you change a
+demo file, expect a test to notice.
+
+### Check code style
+
+```
+ruff format .
+ruff check .
 ```
 
 ### Project structure
@@ -52,59 +196,12 @@ pip install -r requirements-dev.txt
 | --- | --- |
 | `main.py` | Entry point. Parses command-line arguments and runs the pipeline in order. |
 | `config.py` | Reads `config.yml` and a tracked project's `ridge.yml` marker file. |
-| `records.py` | Walks a project's archive folders, validates each record, and checks for duplicate ids. |
+| `records.py` | Reads the records in a project's folders, works out each one's type, checks it, and flags duplicate ids. |
+| `setup_check.py` | Checks the setup without running RIDGE. This is what `py main.py --check` runs. |
 | `file_io.py` | Shared file-reading helper, used by `config.py` and `records.py`, that always reads as UTF-8. |
 | `git_history.py` | Reads recent commit history from a project's code repo. |
-| `tests/` | The test suite. One file per module above (`test_config.py`, `test_file_io.py`, `test_records.py`, `test_git_history.py`). |
+| `tests/` | The test suite. One file per module above (`test_config.py`, `test_file_io.py`, `test_records.py`, `test_git_history.py`, `test_setup_check.py`). |
 | `conftest.py` | Empty on purpose — its presence tells pytest where the project root is, so tests can import the modules above. |
-
-### Configuration
-
-RIDGE reads a `config.yml` file. Copy `config.example.yml` to `config.yml` to get started. `config.yml` is gitignored, since it holds paths specific to your own machine.
-
-`config.yml` lists the project archives RIDGE should track:
-
-```yaml
-projects:
-  - project_path: ../path-to-your-project-archive
-    data_collection_range:
-      weeks: 1
-```
-
-Each project needs a `project_path` (its archive folder, not the marker file itself) and a `data_collection_range` saying how far back to look for git activity. `data_collection_range` is handed straight to Python's `timedelta`, so it accepts whatever `timedelta` does — `weeks`, `days`, `hours`, and so on. List as many projects as you want; RIDGE runs the same pipeline for each one.
-
-Each listed folder is a project archive. It must contain a marker file, `ridge.yml`, at its root:
-
-```yaml
-id: my-project                  # stable identifier, never derived from the folder name
-name: My Project
-git_repo: ../my-project-code    # optional, for git metadata. Leave the key out entirely
-                                 # if this project doesn't track git history. If you add
-                                 # it, it can't be left blank — once it's set, RIDGE
-                                 # expects it to work, so a bad path, a missing path, or
-                                 # an empty value all fail loudly rather than being
-                                 # silently skipped.
-site_slug: my-project           # which site page this project writes to
-conventions:                    # optional — maps record types to folders
-  sessions: docs/sessions/
-  decisions: docs/decisions/
-```
-
-`conventions` is how RIDGE finds your session logs, decision records, and other authored files, without assuming any particular folder layout. Every project can name its own folders differently.
-
-### Usage
-
-```
-py main.py
-```
-
-Point at a different config file with `--config`:
-
-```
-py main.py --config path/to/other_config.yml
-```
-
-Output right now is a short console summary per project — how many git commits were found in the lookback window, how many valid records were found, and any duplicate ids. RIDGE doesn't generate or publish a field note yet.
 
 ### Logging conventions
 
@@ -115,20 +212,6 @@ RIDGE tags its own console output so you can tell what matters at a glance:
 - `[ERR]` — something's actually broken
 
 A real misconfiguration (a bad `git_repo` path, a missing `config.yml`) exits the program outright rather than logging `[ERR]` and continuing.
-
-### Testing
-
-Run the test suite from the `ridge-agent` folder:
-
-```
-pytest
-```
-
-Check code style with the linter:
-
-```
-ruff check .
-```
 
 ### License
 

@@ -2,42 +2,61 @@
 # main.py
 # Entry point for RIDGE.
 #
-# Reads config.yml to find every project to track. For each one:
-# reads that project's ridge.yml marker file once, walks its
-# archive and reads every record it finds (validating each one
-# and flagging any duplicate ids), and checks whether that project
-# has git_repo set — if it does, reports its recent commit activity
+# With --check, it only checks the setup and reports what it
+# finds (see setup_check.py). Nothing else runs.
+#
+# Without --check, it reads config.yml to find every project to
+# track. For each one it reads that project's ridge.yml once,
+# reads every record in the folders it lists, flags duplicate
+# ids, and, if git_repo is set, reports recent commit activity
 # for the configured lookback window.
 #
-# Not built yet: writing the generated field note back out.
+# Not built yet: writing the field note back out.
 # ============================================================
 import argparse
+import sys
 from datetime import timedelta
-from pathlib import Path
 
-from config import load_config, read_marker
+from config import (
+    MARKER_FILE_NAME,
+    load_config,
+    read_marker,
+    resolve_project_location,
+)
 from git_history import get_git_history, resolve_git_repo_path
 from records import discover_records, find_duplicate_records
+from setup_check import run_setup_check
 
 if __name__ == "__main__":
-    # --config lets you point at a different config file. Left
-    # unset, it defaults to config.yml in the current folder.
+    # --config points at a different config file. Left unset, it
+    # uses config.yml in the current folder.
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yml")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="check the setup and report problems, without running RIDGE",
+    )
     args = parser.parse_args()
+
+    if args.check:
+        # Exit code 1 when there's a problem, so a script or a
+        # scheduled task can tell the check didn't pass.
+        setup_is_good = run_setup_check(args.config)
+        sys.exit(0 if setup_is_good else 1)
 
     config_data = load_config(args.config)
 
-    # Every project in the list gets the exact same treatment, one
-    # at a time. A problem with one project (handled inside the
-    # functions this loop calls) still stops the whole run for now —
-    # that's an open question, not a decision made here.
+    # Every project gets the same steps, one at a time. A problem
+    # with one project still stops the whole run for now. How that
+    # should work is an open question tracked in M9.
     for project in config_data["projects"]:
-        project_location = project["project_path"]
+        project_location = resolve_project_location(
+            args.config, project["project_path"]
+        )
         lookback = timedelta(**project["data_collection_range"])
 
-        marker_path = Path(project_location) / "ridge.yml"
-        marker_file = read_marker(marker_path)
+        marker_file = read_marker(project_location / MARKER_FILE_NAME)
         conventions = marker_file.get("conventions", {})
         records = discover_records(project_location, conventions)
         duplicate_ids = find_duplicate_records(records)
@@ -48,9 +67,8 @@ if __name__ == "__main__":
             commits = get_git_history(str(git_repo_path), lookback)
             print(f"Found {len(commits)} commit(s) in the last {lookback}.")
 
-        # A short, human-readable summary of the run — not the full record
-        # dump. This is a manual smoke check against your real archive,
-        # not a substitute for running the test suite.
+        # A short summary to check by eye against your own archive.
+        # It doesn't replace running the tests.
         print(
             f"Discovered {len(records)} valid records in project at {project_location}."
         )

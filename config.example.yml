@@ -20,8 +20,16 @@
 #
 # List as many projects as you want — RIDGE runs this same
 # pipeline once for every project in the list.
+#
+# The project below is the public demo archive, ridge-agent-demo.
+# Clone it into the same parent folder as ridge-agent and this
+# file works as-is. Once you've tried it, change project_path to
+# your own archive in your config.yml.
+#
+# The tests in tests/ read this file too, so leave it pointed at
+# the demo when you commit it.
 
 projects:
-  - project_path: ../path-to-your-project-archive
+  - project_path: ../ridge-agent-demo
     data_collection_range:
       weeks: 1

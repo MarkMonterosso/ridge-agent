@@ -3,102 +3,242 @@
 # Tests for validate_record, discover_records, and
 # find_duplicate_records in records.py.
 #
-# validate_record and find_duplicate_records are tested with
-# plain dictionaries — neither one touches a file, so neither
-# needs one. discover_records is tested with real markdown files
-# built under tmp_path, since its whole job is reading them.
+# The discover_records tests don't make up their own folders.
+# They read config.example.yml, follow it to the project it
+# lists, read that project's ridge.yml, and look in whatever folders it
+# lists. That's the same path RIDGE takes on a real run, so if
+# the config and the code stop matching, these tests break.
+#
+# The example config points at a sample project whose files only
+# change when someone changes them on purpose, so these tests can
+# look for specific sample records by id.
+#
+# validate_record and find_duplicate_records still get plain
+# dictionaries. Neither one reads files, so there's no folder
+# for them to depend on.
+#
+# Some tests here fail until records.py learns to work out each
+# record's type. Each of those says "Fails today" above it.
 # ============================================================
 from datetime import date
+from pathlib import Path
 
+from config import (
+    MARKER_FILE_NAME,
+    load_config,
+    read_marker,
+    resolve_project_location,
+)
 from records import discover_records, find_duplicate_records, validate_record
 
+# The example config sits at the top of the repo, one folder up
+# from this file.
+EXAMPLE_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.example.yml"
 
-# A record missing its id entirely should fail validation.
+
+def load_example_projects():
+    # Read the example config and each project's marker file the
+    # same way main.py does. Returns a list of
+    # (project_location, marker_file) pairs.
+    config_data = load_config(EXAMPLE_CONFIG_PATH)
+    projects = []
+    for project in config_data["projects"]:
+        project_location = resolve_project_location(
+            EXAMPLE_CONFIG_PATH, project["project_path"]
+        )
+        marker_file = read_marker(project_location / MARKER_FILE_NAME)
+        projects.append((project_location, marker_file))
+    return projects
+
+
+def read_project_records():
+    # Uses the first project in the example config. The id checks
+    # below are written against that project's sample files, so
+    # they only look at that one.
+    project_location, marker_file = load_example_projects()[0]
+    conventions = marker_file.get("conventions", {})
+    return discover_records(project_location, conventions)
+
+
+def find_record(records, record_id):
+    for record in records:
+        if record.get("id") == record_id:
+            return record
+    return None
+
+
+# ---------- validate_record ----------
+
+
+# A record with no id can't be pointed at or checked for
+# duplicates later, so it gets rejected.
 def test_validate_record_missing_id():
-    metadata = {"date": date(2026, 1, 1)}
+    metadata = {"type": "session", "date": date(2026, 1, 1)}
     assert validate_record(metadata) is not None
 
 
-# A record whose id key is present but blank should also fail —
-# having the key isn't enough, it needs a real value.
+# Having the id key isn't enough. It needs a value.
 def test_validate_record_blank_id():
-    metadata = {"id": None, "date": date(2026, 1, 1)}
+    metadata = {"type": "session", "id": None, "date": date(2026, 1, 1)}
     assert validate_record(metadata) is not None
 
 
-# A record with a real id and a real date should pass.
-def test_validate_record_valid():
-    metadata = {"id": "2026-01-01-001", "date": date(2026, 1, 1)}
+# A session with an id and a real date passes.
+def test_validate_record_valid_session():
+    metadata = {"type": "session", "id": "2026-01-01-001", "date": date(2026, 1, 1)}
     assert validate_record(metadata) is None
 
 
-# A date that's still plain text, like an unfilled "YYYY-MM-DD"
-# template placeholder, should fail — PyYAML only turns a real
-# date into a date object, never plain text like this.
-def test_validate_record_placeholder_date():
-    metadata = {"id": "YYYY-MM-DD-NNN", "date": "YYYY-MM-DD"}
+# A session needs a date to land in the right week.
+def test_validate_record_session_without_date():
+    metadata = {"type": "session", "id": "2026-01-01-001"}
     assert validate_record(metadata) is not None
 
 
-# discover_records should find a well-formed record and include
-# it in the list it returns.
-def test_discover_records_valid_record(tmp_path):
-    sessions_dir = tmp_path / "docs" / "sessions"
-    sessions_dir.mkdir(parents=True)
-    (sessions_dir / "2026-01-01-001.md").write_text(
-        "---\nid: 2026-01-01-001\ndate: 2026-01-01\ntitle: A session\n---\nBody text.\n",
-        encoding="utf-8",
-    )
-
-    records = discover_records(tmp_path, {"session": "docs/sessions"})
-
-    assert len(records) == 1
-    assert records[0]["id"] == "2026-01-01-001"
+# An unfilled template leaves the date as the text "YYYY-MM-DD".
+# YAML only turns a real date into a date object, so this text
+# should be rejected.
+def test_validate_record_placeholder_date():
+    metadata = {"type": "session", "id": "YYYY-MM-DD-NNN", "date": "YYYY-MM-DD"}
+    assert validate_record(metadata) is not None
 
 
-# A record with malformed YAML in its frontmatter should be skipped
-# and logged, the same as a record that fails validation — not
-# treated as fatal for the whole archive read.
-def test_discover_records_skips_malformed_yaml(tmp_path):
-    sessions_dir = tmp_path / "docs" / "sessions"
-    sessions_dir.mkdir(parents=True)
-    (sessions_dir / "good.md").write_text(
-        '---\nid: "001"\ndate: 2026-01-01\n---\nBody.\n', encoding="utf-8"
-    )
-    (sessions_dir / "bad.md").write_text(
-        "---\nid: [unclosed\ndate: 2026-01-01\n---\nBody.\n", encoding="utf-8"
-    )
-
-    records = discover_records(tmp_path, {"session": "docs/sessions"})
-
-    assert len(records) == 1
-    assert records[0]["id"] == "001"
+# Milestone records don't have a date. They use "completed"
+# instead (ADR-0002, ADR-0004), so a missing date is normal for
+# them. Fails today, because every record has to have a date.
+def test_validate_record_milestone_without_date():
+    metadata = {
+        "type": "milestone",
+        "id": "M1",
+        "title": "A milestone",
+        "state": "done",
+        "order": 1,
+        "completed": date(2026, 1, 1),
+        "phase": 5,
+    }
+    assert validate_record(metadata) is None
 
 
-# A conventions folder that doesn't exist yet shouldn't crash the
-# program — a project may simply not have any records of that
-# type written yet.
-def test_discover_records_missing_folder(tmp_path):
-    records = discover_records(tmp_path, {"session": "docs/sessions"})
+# ---------- the example config ----------
+
+
+# The example config has to point at a project RIDGE can read.
+# If someone changes it to a path that only exists on their own
+# machine, this is the test that catches it.
+def test_example_config_points_at_a_readable_project():
+    projects = load_example_projects()
+    assert len(projects) > 0
+    for project_location, marker_file in projects:
+        assert project_location.is_dir()
+        assert "conventions" in marker_file
+
+
+# ---------- discover_records ----------
+
+
+# A complete, valid session gets read.
+def test_discover_records_reads_valid_session():
+    records = read_project_records()
+    assert find_record(records, "test-2026-09-21-001") is not None
+
+
+# A session with no date gets left out.
+def test_discover_records_skips_session_without_date():
+    records = read_project_records()
+    assert find_record(records, "test-2026-09-21-002") is None
+
+
+# A session with broken YAML gets left out, and the rest of the
+# project still gets read in the same call.
+def test_discover_records_skips_malformed_yaml():
+    records = read_project_records()
+    assert find_record(records, "test-2026-09-21-003") is None
+    assert find_record(records, "test-2026-09-21-001") is not None
+
+
+# A decision gets read. Its file says type: decision.
+def test_discover_records_reads_decision():
+    records = read_project_records()
+    decisions = [record for record in records if record.get("type") == "decision"]
+    assert len(decisions) == 1
+
+
+# A milestone has no date, like every real milestone
+# record, and it should still get read. Fails today.
+def test_discover_records_reads_milestone_without_date():
+    records = read_project_records()
+    milestone = find_record(records, "M1")
+    assert milestone is not None
+    assert milestone.get("type") == "milestone"
+
+
+# This session has no type line, so RIDGE has to work out its
+# type from the folder it sits in. The folder's entry in ridge.yml
+# is named after the type, so that name is the answer. Phase 1
+# calls this the second step of the type ladder. Fails today.
+def test_discover_records_type_comes_from_folder_when_file_has_none():
+    records = read_project_records()
+    record = find_record(records, "test-2026-09-21-005")
+    assert record is not None
+    assert record.get("type") == "session"
+
+
+# People write ids however they like, without quotes. YAML reads
+# id: 0001 as the number 1 and drops the zeros, so RIDGE has to
+# keep ids as text while it reads the file. Changing the number
+# back to text afterward only gives "1". Fails today.
+def test_discover_records_keeps_ids_as_text():
+    records = read_project_records()
+    assert find_record(records, "0001") is not None
+    for record in records:
+        assert isinstance(record.get("id"), str)
+
+
+# This file says type: session but sits in the decisions
+# folder. When a file says what it is, RIDGE believes the file
+# (step one of Phase 1's type ladder). This passes today only
+# because RIDGE never looks at folders at all. It's here to make
+# sure the fix keeps the order right.
+def test_discover_records_file_type_beats_folder():
+    records = read_project_records()
+    record = find_record(records, "test-2026-09-21-004")
+    assert record is not None
+    assert record.get("type") == "session"
+
+
+# Every record that comes back should know what type it is.
+# Nothing after this point can count sessions or diff milestones
+# without that. Fails today, because of the sample session with no
+# type line.
+def test_discover_records_every_record_has_a_type():
+    records = read_project_records()
+    assert len(records) > 0
+    for record in records:
+        assert record.get("type")
+
+
+# A folder named in ridge.yml that doesn't exist yet is normal
+# for a new project (ADR-0006). This uses the project's real marker
+# file but an empty project folder, so every folder it lists is
+# missing. RIDGE should return nothing and keep going.
+def test_discover_records_missing_folders(tmp_path):
+    _, marker_file = load_example_projects()[0]
+    conventions = marker_file.get("conventions", {})
+    records = discover_records(tmp_path, conventions)
     assert records == []
 
 
-# A record that fails validation (missing id here) should be
-# logged and skipped, not included in the returned list.
-def test_discover_records_skips_invalid_record(tmp_path):
-    sessions_dir = tmp_path / "docs" / "sessions"
-    sessions_dir.mkdir(parents=True)
-    (sessions_dir / "no_id.md").write_text(
-        "---\ndate: 2026-01-01\n---\nBody.\n", encoding="utf-8"
-    )
-
-    records = discover_records(tmp_path, {"session": "docs/sessions"})
-
-    assert records == []
+# No two records in a project share an id.
+def test_discover_records_finds_no_duplicate_ids():
+    records = read_project_records()
+    assert find_duplicate_records(records) == []
 
 
-# find_duplicate_records should flag a later record that shares
-# an id already seen, but not the first occurrence of that id.
+# ---------- find_duplicate_records ----------
+
+
+# The second record with an id we've already seen gets flagged.
+# The first one doesn't.
 def test_find_duplicate_records_detects_duplicate():
     records = [
         {"id": "001", "title": "First"},
@@ -112,7 +252,7 @@ def test_find_duplicate_records_detects_duplicate():
     assert duplicates[0]["title"] == "Third, same id as First"
 
 
-# No shared ids means no duplicates found.
+# No shared ids means nothing gets flagged.
 def test_find_duplicate_records_no_duplicates():
     records = [{"id": "001"}, {"id": "002"}, {"id": "003"}]
     assert find_duplicate_records(records) == []
