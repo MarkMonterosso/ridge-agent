@@ -3,7 +3,7 @@
 # Entry point for RIDGE.
 #
 # With --check, it only checks the setup and reports what it
-# finds (see setup_check.py). Nothing else runs.
+# finds (see ridge/setup_check.py). Nothing else runs.
 #
 # Without --check, it reads config.yml to find every project to
 # track. For each one it reads that project's ridge.yml once,
@@ -11,21 +11,28 @@
 # ids, and, if git_repo is set, reports recent commit activity
 # for the configured lookback window.
 #
+# The code that does the work lives in the ridge/ folder. This
+# file only decides what runs, in what order.
+#
 # Not built yet: writing the field note back out.
 # ============================================================
 import argparse
 import sys
 from datetime import timedelta
 
-from config import (
+from ridge.config import (
     MARKER_FILE_NAME,
     load_config,
     read_marker,
     resolve_project_location,
 )
-from git_history import get_git_history, resolve_git_repo_path
-from records import discover_records, find_duplicate_records, resolve_included_patterns
-from setup_check import run_setup_check
+from ridge.git_history import get_git_history, resolve_git_repo_path
+from ridge.records import (
+    discover_records,
+    find_duplicate_records,
+    resolve_included_patterns,
+)
+from ridge.setup_check import run_setup_check
 
 if __name__ == "__main__":
     # --config points at a different config file. Left unset, it

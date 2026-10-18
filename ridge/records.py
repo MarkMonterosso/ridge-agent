@@ -25,7 +25,7 @@ import frontmatter
 import yaml
 from frontmatter.default_handlers import YAMLHandler
 
-from file_io import open_utf8_file
+from ridge.file_io import open_utf8_file
 
 # The fields each record type has to have, from the schemas in
 # Phase 1 and ADR-0004. A type that isn't listed here only needs

@@ -24,9 +24,13 @@ import yaml
 from git import Repo
 from git.exc import InvalidGitRepositoryError, NoSuchPathError
 
-from config import MARKER_FILE_NAME, load_config, resolve_project_location
-from file_io import open_utf8_file
-from records import DEFAULT_INCLUDED_PATTERNS, find_duplicate_records, read_records
+from ridge.config import MARKER_FILE_NAME, load_config, resolve_project_location
+from ridge.file_io import open_utf8_file
+from ridge.records import (
+    DEFAULT_INCLUDED_PATTERNS,
+    find_duplicate_records,
+    read_records,
+)
 
 
 def check_marker_file(marker_file, project_location):

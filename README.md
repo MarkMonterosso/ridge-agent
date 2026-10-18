@@ -189,16 +189,32 @@ ruff check .
 
 ### Project structure
 
+The top folder holds what a user touches: `main.py`, the two example
+config files, and this README. The code that does the work lives in
+`ridge/`, a package (Python's word for a library folder), so you
+only need to open it to change how RIDGE works.
+
+```
+ridge-agent/
+  main.py               run this
+  config.example.yml    template for config.yml
+  ridge.example.yml     template for a project's ridge.yml
+  ridge/                the code
+  tests/                the tests, one file per file in ridge/
+```
+
 | File | What it does |
 | --- | --- |
 | `main.py` | Entry point. Parses command-line arguments and runs the pipeline in order. |
-| `config.py` | Reads `config.yml` and a tracked project's `ridge.yml` marker file. |
-| `records.py` | Reads the records in a project's folders, works out each one's type, checks it, and flags duplicate ids. |
-| `setup_check.py` | Checks the setup without running RIDGE. This is what `py main.py --check` runs. |
-| `file_io.py` | Shared file-reading helper, used by `config.py` and `records.py`, that always reads as UTF-8. |
-| `git_history.py` | Reads recent commit history from a project's code repo. |
-| `tests/` | The test suite. One file per module above (`test_config.py`, `test_file_io.py`, `test_records.py`, `test_git_history.py`, `test_setup_check.py`). |
-| `conftest.py` | Empty on purpose. Because it's here, pytest treats this folder as the project root, so the tests can import the modules above. |
+| `ridge/__init__.py` | Empty on purpose. It's what makes `ridge/` a package, so other files can load its code with `from ridge.records import ...`. |
+| `ridge/config.py` | Reads `config.yml` and a tracked project's `ridge.yml` marker file. |
+| `ridge/records.py` | Reads the records in a project's folders, works out each one's type, checks it, and flags duplicate ids. |
+| `ridge/change_index.py` | Builds the index of a project's files that RIDGE compares against to find what changed, and saves it between runs. |
+| `ridge/setup_check.py` | Checks the setup without running RIDGE. This is what `py main.py --check` runs. |
+| `ridge/file_io.py` | Shared file-reading helper, used by `config.py` and `records.py`, that always reads as UTF-8. |
+| `ridge/git_history.py` | Reads recent commit history from a project's code repo. |
+| `tests/` | The test suite. One file for each file in `ridge/`, named `test_` plus its name. |
+| `conftest.py` | Empty on purpose. Because it's here, pytest treats this folder as the project root, so the tests can load the `ridge/` folder. |
 | `pytest.ini` | Test settings: one line per test, short failure messages. |
 | `config.example.yml` | Template for `config.yml`. Points at the demo project. |
 | `ridge.example.yml` | Template for a project's `ridge.yml`, with every option explained. |

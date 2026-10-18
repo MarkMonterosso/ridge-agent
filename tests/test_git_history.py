@@ -20,7 +20,7 @@ from datetime import timedelta
 import pytest
 from git import Repo
 
-from git_history import get_git_history, resolve_git_repo_path
+from ridge.git_history import get_git_history, resolve_git_repo_path
 
 
 # A path that exists but has no .git folder isn't a usable repo.

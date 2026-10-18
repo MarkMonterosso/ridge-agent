@@ -23,13 +23,13 @@ from pathlib import Path
 
 import pytest
 
-from config import (
+from ridge.config import (
     MARKER_FILE_NAME,
     load_config,
     read_marker,
     resolve_project_location,
 )
-from records import (
+from ridge.records import (
     DEFAULT_INCLUDED_PATTERNS,
     discover_records,
     find_duplicate_records,

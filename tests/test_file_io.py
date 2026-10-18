@@ -6,7 +6,7 @@
 # ============================================================
 import pytest
 
-from file_io import open_utf8_file
+from ridge.file_io import open_utf8_file
 
 
 # open_utf8_file should stop the program if the file it's given

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import yaml
 
-from file_io import open_utf8_file
+from ridge.file_io import open_utf8_file
 
 # Every project folder has this file at its top level. Phase 1
 # calls it the marker file.

@@ -6,7 +6,7 @@
 # ============================================================
 import pytest
 
-from config import load_config, read_marker
+from ridge.config import load_config, read_marker
 
 
 # load_config should stop the program if the file it's given

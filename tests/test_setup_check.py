@@ -13,8 +13,8 @@
 # ============================================================
 from pathlib import Path
 
-from config import load_config
-from setup_check import (
+from ridge.config import load_config
+from ridge.setup_check import (
     check_config_entry,
     check_marker_file,
     check_project,

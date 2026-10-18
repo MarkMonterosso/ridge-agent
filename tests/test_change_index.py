@@ -3,23 +3,35 @@
 # Tests for change_index.py, the index RIDGE uses to tell what
 # changed since the last post (ADR-0008).
 #
-# Every test here was written before the code it checks, so each
-# one is marked as an expected failure. When a function gets built
-# and its tests start passing, pytest reports them as FAILED with
-# XPASS(strict). That's the reminder to delete the marker line
-# above each of them.
+# The save and load tests were written before their code, so each
+# one is marked as an expected failure. When a test starts passing,
+# pytest reports it as FAILED with XPASS(strict). That's the cue to
+# delete the marker line above it.
 #
-# The scan tests read config.example.yml and the demo project, the
-# same way test_records.py does. The hash tests only need two small
-# files with known text, so they write them into tmp_path.
+# The scan tests and the save-then-load test read
+# config.example.yml and the demo project, the same way
+# test_records.py does. The other tests only need a place to write
+# files, so they use tmp_path, an empty throwaway folder pytest
+# gives each test.
 # ============================================================
 from pathlib import Path
 
 import pytest
 
-from change_index import hash_file_text, scan_project
-from config import MARKER_FILE_NAME, load_config, read_marker, resolve_project_location
-from records import resolve_included_patterns
+from ridge.change_index import (
+    hash_file_text,
+    index_path_for,
+    load_index,
+    save_index,
+    scan_project,
+)
+from ridge.config import (
+    MARKER_FILE_NAME,
+    load_config,
+    read_marker,
+    resolve_project_location,
+)
+from ridge.records import resolve_included_patterns
 
 EXAMPLE_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.example.yml"
 
@@ -115,3 +127,75 @@ def test_scan_skips_missing_folders(tmp_path):
     index = scan_project(tmp_path, conventions, ["*.md"])
 
     assert index == {}
+
+
+# ---------- index_path_for ----------
+
+
+# Each project's index file is named after its id, so two projects
+# never share one, and renaming a project folder doesn't lose it.
+def test_index_path_is_named_after_project_id(tmp_path):
+    index_path = index_path_for(tmp_path, "ridge-agent-demo")
+
+    assert index_path.parent == tmp_path
+    assert "ridge-agent-demo" in index_path.name
+
+
+# ---------- save_index and load_index ----------
+
+
+# Saving an index and loading it back gives the same index.
+def test_save_then_load_gives_back_the_same_index(tmp_path):
+    index = scan_example_project()
+    index_path = tmp_path / "ridge-agent-demo.index.json"
+
+    save_index(index, index_path)
+
+    assert load_index(index_path) == index
+
+
+# No index file yet means this is the project's first run.
+def test_load_returns_none_when_there_is_no_index(tmp_path):
+    assert load_index(tmp_path / "missing.index.json") is None
+
+
+# The folder that holds the index may not exist yet on a new
+# install, so saving creates it.
+def test_save_creates_the_folder_if_missing(tmp_path):
+    index_path = tmp_path / "state" / "ridge-agent-demo.index.json"
+
+    save_index({}, index_path)
+
+    assert index_path.is_file()
+
+
+# Saving twice keeps only the newest index.
+def test_save_replaces_the_old_index(tmp_path):
+    index_path = tmp_path / "ridge-agent-demo.index.json"
+    old_index = {"docs/a.md": {"size": 1, "modified": 1.0, "hash": "old"}}
+    new_index = {"docs/a.md": {"size": 2, "modified": 2.0, "hash": "new"}}
+
+    save_index(old_index, index_path)
+    save_index(new_index, index_path)
+
+    assert load_index(index_path) == new_index
+
+
+# After a save, only the index file is left in the folder. The
+# temporary file used during the write is gone.
+def test_save_leaves_no_temporary_file_behind(tmp_path):
+    index_path = tmp_path / "ridge-agent-demo.index.json"
+
+    save_index({}, index_path)
+
+    assert [path.name for path in tmp_path.iterdir()] == [index_path.name]
+
+
+# A damaged index file stops the program with a message, so nobody
+# mistakes it for a first run and posts the whole project history.
+def test_load_stops_on_a_damaged_index(tmp_path):
+    index_path = tmp_path / "ridge-agent-demo.index.json"
+    index_path.write_text("{ this is not valid json", encoding="utf-8")
+
+    with pytest.raises(SystemExit):
+        load_index(index_path)

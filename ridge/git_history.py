@@ -37,7 +37,7 @@ def get_git_history(repo_path, lookback: timedelta):
     # function runs (ADR-0005). If a fixed date were worked out
     # somewhere else and handed in, it would go stale as soon as the
     # config sat unchanged for a while, and RIDGE runs on its own.
-    since: datetime = datetime.now() - lookback
+    since: datetime = datetime.now().astimezone() - lookback
 
     recent_commits = list(repo.iter_commits(since=since))
 

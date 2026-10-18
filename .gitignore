@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 config.yml
+# RIDGE's memory files. The folder itself is kept by its README.
+state/*
+!state/README.md
