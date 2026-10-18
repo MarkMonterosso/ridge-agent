@@ -35,9 +35,24 @@ site_slug: my-project
 
 # Optional. Which file names RIDGE may read inside the folders
 # listed under conventions. Anything that doesn't match is
-# ignored. Leave this line out to read only markdown files
-# ("*.md"). You can list more than one pattern, for example
-# "*.md" and "*.txt". "**/*.md" also looks inside subfolders.
+# ignored. Leave this line out to read only markdown files.
+#
+# Each pattern is a "glob", a file name with wildcards:
+#   *        any characters          "*.md" matches notes.md
+#   ?        exactly one character   "0?.md" matches 01.md and 02.md
+#   **       any number of folders   "**/*.md" matches .md files in
+#                                    the folder and every folder
+#                                    inside it
+#
+# RIDGE only looks inside subfolders when a pattern starts with
+# "**/". "*.md" on its own reads only the files directly in each
+# folder.
+#
+# You can list more than one pattern. A file that matches two
+# patterns is still read once. For example:
+#   included_patterns:
+#     - "*.md"
+#     - "*.txt"
 included_patterns:
   - "*.md"
 

@@ -133,9 +133,13 @@ is explained in comments inside that file. The main ones:
 
 - `id` names the project and never changes, even if you rename the
   folder.
-- `included_patterns` lists the file names RIDGE may read, such as
-  `"*.md"`. Anything that doesn't match is ignored. Leave it out to
-  read only markdown files.
+- `included_patterns` lists the file names RIDGE may read, written as
+  file name patterns with wildcards. `"*.md"` means every file ending
+  in `.md`. Anything that doesn't match is ignored, and leaving the
+  line out reads only markdown files. RIDGE only looks inside
+  subfolders when a pattern starts with `**/`, so `"**/*.md"` reads
+  `.md` files in each folder and every folder inside it. You can list
+  more than one pattern.
 - `conventions` says which folder holds which kind of record. Name
   your folders whatever you want. If a record file has no `type:`
   line, RIDGE uses the type of the folder it's in.
