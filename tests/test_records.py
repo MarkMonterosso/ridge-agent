@@ -1,7 +1,10 @@
 # ============================================================
 # test_records.py
-# Tests for validate_record, discover_records, and
-# find_duplicate_records in records.py.
+# Tests for validate_record, discover_records,
+# find_duplicate_records and read_header_and_body in records.py.
+#
+# The read_header_and_body tests were written before their code,
+# so each one is marked as an expected failure until it passes.
 #
 # The discover_records tests don't make up their own folders.
 # They read config.example.yml, follow it to the project it
@@ -33,6 +36,7 @@ from ridge.records import (
     DEFAULT_INCLUDED_PATTERNS,
     discover_records,
     find_duplicate_records,
+    read_header_and_body,
     resolve_included_patterns,
     validate_record,
 )
@@ -294,6 +298,71 @@ def test_discover_records_reads_every_listed_pattern():
 def test_discover_records_finds_no_duplicate_ids():
     records = read_project_records()
     assert find_duplicate_records(records) == []
+
+
+# ---------- read_header_and_body ----------
+
+
+# The header fields and the text below them come back separately.
+def test_header_and_body_come_back_separately(tmp_path):
+    record_file = tmp_path / "session.md"
+    record_file.write_text(
+        "---\ntype: session\nid: test-001\n---\n\nFirst paragraph.\n",
+        encoding="utf-8",
+    )
+
+    header, body = read_header_and_body(record_file)
+
+    assert header["type"] == "session"
+    assert header["id"] == "test-001"
+    assert body.strip() == "First paragraph."
+
+
+# Headers are optional. A plain note gives an empty header and its
+# whole text as the body.
+def test_file_without_header_gives_empty_header(tmp_path):
+    plain_file = tmp_path / "note.md"
+    plain_file.write_text("Just a plain note.\n", encoding="utf-8")
+
+    header, body = read_header_and_body(plain_file)
+
+    assert header == {}
+    assert body.strip() == "Just a plain note."
+
+
+# A broken header doesn't stop the scan. The file still gets an
+# entry, with an empty header and its whole text as the body.
+def test_broken_header_gives_empty_header(tmp_path):
+    broken_file = tmp_path / "broken.md"
+    broken_file.write_text("---\nid: [unclosed\n---\nBody.\n", encoding="utf-8")
+
+    header, body = read_header_and_body(broken_file)
+
+    assert header == {}
+    assert "Body." in body
+
+
+# Dates come back as text, because the index is saved as JSON.
+def test_header_dates_come_back_as_text(tmp_path):
+    record_file = tmp_path / "session.md"
+    record_file.write_text(
+        "---\nid: test-001\ndate: 2026-10-18\n---\n", encoding="utf-8"
+    )
+
+    header, _body = read_header_and_body(record_file)
+
+    assert header["date"] == "2026-10-18"
+
+
+# Ids keep their leading zeros, the same rule discover_records
+# follows.
+def test_header_ids_stay_text(tmp_path):
+    record_file = tmp_path / "decision.md"
+    record_file.write_text("---\nid: 0001\n---\n", encoding="utf-8")
+
+    header, _body = read_header_and_body(record_file)
+
+    assert header["id"] == "0001"
 
 
 # ---------- find_duplicate_records ----------

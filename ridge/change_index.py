@@ -20,8 +20,15 @@
 # only when the write has finished, so a crash halfway through
 # leaves the old index as it was.
 #
-# Not built yet: comparing a scan to the saved index, and
-# fingerprints for each paragraph.
+# hash_paragraphs() gives each paragraph its own fingerprint, so
+# RIDGE can say which part of a file changed instead of only that
+# something did.
+#
+# compare_indexes() lines up last run's index against this run's
+# scan and sorts the files into new, deleted, changed and renamed.
+#
+# compare_entries() looks inside one changed file and says which
+# header fields changed and which paragraphs were added or removed.
 # ============================================================
 
 import json
@@ -29,6 +36,8 @@ import os
 import sys
 from hashlib import sha256
 from pathlib import Path
+
+from ridge.records import read_header_and_body
 
 
 def hash_file_text(file_path):
@@ -39,6 +48,20 @@ def hash_file_text(file_path):
     text = text.replace("\r\n", "\n")  # Windows to Linux line endings
 
     return sha256(text.encode("utf-8")).hexdigest()[:16]  # 16 hex chars = 64 bits
+
+
+def hash_paragraphs(text):
+    text = text.replace("\r\n", "\n")  # Windows to Linux line endings
+
+    paragraph_hashes = []
+
+    for paragraph in text.split("\n\n"):
+        paragraph = paragraph.strip()  # remove leading/trailing whitespace
+
+        if paragraph.strip():  # ignore empty paragraphs
+            paragraph_hashes.append(sha256(paragraph.encode("utf-8")).hexdigest()[:16])
+
+    return paragraph_hashes
 
 
 def scan_project(project_location, conventions, included_patterns):
@@ -53,9 +76,9 @@ def scan_project(project_location, conventions, included_patterns):
         if not folder.exists():
             continue  # ADR-0006: a missing folder is normal for a new project
 
-        matching = (
-            set()
-        )  # a set keeps one copy of each file, even if it matches two patterns
+        # A set keeps one copy of each file, even if it matches two
+        # patterns.
+        matching = set()
 
         for pattern in included_patterns:
             matching.update(
@@ -69,11 +92,16 @@ def scan_project(project_location, conventions, included_patterns):
                 project_location
             ).as_posix()  # forward slashes on every computer
 
+            header, body = read_header_and_body(file_path)
+
             index[relative_path] = {
+                "header": header,
+                "paragraphs": hash_paragraphs(body),
                 "size": file_path.stat().st_size,
                 "modified": file_path.stat().st_mtime,
                 "hash": hash_file_text(file_path),
             }
+
     return index
 
 
@@ -113,3 +141,66 @@ def load_index(index_path):
     except json.JSONDecodeError as error:
         print(f"[ERR] Error reading index file {index_path}: {error}", file=sys.stderr)
         sys.exit(1)
+
+
+def compare_indexes(old_index, new_index):
+    # Returns three lists of files: new, deleted and changed. Each
+    # list contains the file's path relative to the project folder.
+    old_files = set(old_index.keys())
+    new_files = set(new_index.keys())
+
+    new = new_files - old_files
+    deleted = old_files - new_files
+
+    changed = []
+    renamed = []
+
+    for file_path in old_files & new_files:
+        if old_index[file_path]["hash"] != new_index[file_path]["hash"]:
+            changed.append(file_path)
+
+    for new_path in sorted(new):
+        for old_path in sorted(deleted):
+            if old_index[old_path]["hash"] == new_index[new_path]["hash"]:
+                renamed.append([old_path, new_path])
+                deleted.remove(old_path)
+                new.remove(new_path)
+                break
+
+    return {
+        "new": sorted(new),
+        "deleted": sorted(deleted),
+        "changed": sorted(changed),
+        "renamed": sorted(renamed),
+    }
+
+
+def compare_entries(old_entry, new_entry):
+
+    header_changes = {}
+    # Compare the header fields in the old entry to those in the new entry. If a field's value is different, add it to the header_changes dictionary with the old and new values.
+    for field in set(old_entry["header"].keys()) | set(new_entry["header"].keys()):
+        old_value = old_entry["header"].get(field)
+        new_value = new_entry["header"].get(field)
+        if old_value != new_value:
+            header_changes[field] = [old_value, new_value]
+
+    added_paragraphs = []
+    # Compare the paragraphs in the new entry to those in the old entry. If a paragraph's hash is not found in the old entry, it is considered added.
+    for position, paragraph_hash in enumerate(new_entry["paragraphs"]):
+        if paragraph_hash not in old_entry["paragraphs"]:
+            added_paragraphs.append(position)
+
+    removed_paragraph_count = 0
+
+    # Compare the paragraphs in the old entry to those in the new entry. If a paragraph's hash is not found in the new entry, it is considered removed. The count of removed paragraphs is incremented.
+    for position, paragraph_hash in enumerate(old_entry["paragraphs"]):
+        if paragraph_hash not in new_entry["paragraphs"]:
+            # If a paragraph's hash is not found in the new entry, it is considered removed. The count of removed paragraphs is incremented.
+            removed_paragraph_count += 1
+
+    return {
+        "header_changes": header_changes,
+        "added_paragraphs": added_paragraphs,
+        "removed_paragraph_count": removed_paragraph_count,
+    }

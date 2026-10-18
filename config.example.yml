@@ -29,8 +29,6 @@
 # The tests in tests/ read this file too, so leave it pointed at
 # the demo when you commit it.
 
-state_path: ../ridge-state
-
 projects:
   - project_path: ../ridge-agent-demo
     data_collection_range:

@@ -156,6 +156,32 @@ def read_records(project_location, conventions, included_patterns):
     return kept_records, rejected_files
 
 
+def read_header_and_body(file_path):
+    # Returns the metadata and the body text of one record file.
+
+    text = open_utf8_file(file_path, "r").read()
+
+    try:
+        # split the text into a header and a body using frontmatter's parser. This is done to avoid loading the entire file into memory at once, which can be inefficient for large files.
+        post = frontmatter.loads(text, handler=RecordYAMLHandler())
+
+        # if the post isn't valid YAML, return an empty header and text. This is done to avoid crashing the program when encountering invalid YAML.
+    except yaml.YAMLError as err:
+        print(f"[WRN] Skipped {file_path}: the header block isn't valid YAML: {err}")
+        return {}, text
+
+    # set header to an empty dictionary if the post doesn't have a header. This is done to avoid crashing the program when encountering a file without a header.
+    if not post.metadata:
+        post.metadata = {}
+
+    # convert any date objects in the metadata to ISO format strings. This is done to ensure that the metadata is in a consistent format that can be easily serialized and deserialized.
+    for field, value in post.metadata.items():
+        if isinstance(value, date):
+            post.metadata[field] = value.isoformat()
+
+    return post.metadata, post.content
+
+
 def discover_records(project_location, conventions, included_patterns):
     kept_records, rejected_files = read_records(
         project_location, conventions, included_patterns

@@ -3,7 +3,7 @@
 # Tests for change_index.py, the index RIDGE uses to tell what
 # changed since the last post (ADR-0008).
 #
-# The save and load tests were written before their code, so each
+# The compare_entries tests were written before their code, so each
 # one is marked as an expected failure. When a test starts passing,
 # pytest reports it as FAILED with XPASS(strict). That's the cue to
 # delete the marker line above it.
@@ -19,7 +19,10 @@ from pathlib import Path
 import pytest
 
 from ridge.change_index import (
+    compare_entries,
+    compare_indexes,
     hash_file_text,
+    hash_paragraphs,
     index_path_for,
     load_index,
     save_index,
@@ -74,6 +77,44 @@ def test_hash_changes_when_text_changes(tmp_path):
     assert hash_file_text(original) != hash_file_text(edited)
 
 
+# ---------- hash_paragraphs ----------
+
+
+# A blank line ends a paragraph, so this text has two.
+def test_paragraphs_split_on_blank_lines():
+    text = "First paragraph.\n\nSecond paragraph.\n"
+
+    assert len(hash_paragraphs(text)) == 2
+
+
+# Editing one paragraph changes only that paragraph's fingerprint.
+def test_editing_one_paragraph_changes_only_its_hash():
+    before = hash_paragraphs("Intro.\n\nM3 is planned.\n\nOutro.\n")
+    after = hash_paragraphs("Intro.\n\nM3 is in progress.\n\nOutro.\n")
+
+    assert before[0] == after[0]
+    assert before[1] != after[1]
+    assert before[2] == after[2]
+
+
+# Windows and Linux line endings give the same fingerprints, the
+# same rule hash_file_text follows.
+def test_paragraph_hashes_ignore_line_endings():
+    windows_text = "First.\r\n\r\nSecond.\r\n"
+    linux_text = "First.\n\nSecond.\n"
+
+    assert hash_paragraphs(windows_text) == hash_paragraphs(linux_text)
+
+
+# Extra blank lines, or spaces at the start and end of a paragraph,
+# don't create empty paragraphs or change a fingerprint.
+def test_extra_blank_lines_and_spaces_are_ignored():
+    tidy_text = "First.\n\nSecond.\n"
+    messy_text = "\n\nFirst.   \n\n\n\n  Second.\n\n\n"
+
+    assert hash_paragraphs(messy_text) == hash_paragraphs(tidy_text)
+
+
 # ---------- scan_project ----------
 
 
@@ -112,6 +153,44 @@ def test_scan_entry_has_size_modified_and_hash():
     assert entry["size"] > 0
     assert entry["modified"] > 0
     assert len(entry["hash"]) > 0
+
+
+# Each entry also holds the file's header fields, with dates as
+# text so the entry can be saved as JSON.
+def test_scan_entry_has_header_fields():
+    index = scan_example_project()
+    entry = index["docs/sessions/2026-09-21-demo-001-valid-sample.md"]
+
+    assert entry["header"]["id"] == "test-2026-09-21-001"
+    assert entry["header"]["date"] == "2026-09-21"
+
+
+# A milestone's state is what RIDGE will compare to spot a
+# milestone moving, so it has to be in the entry.
+def test_scan_entry_has_milestone_state():
+    index = scan_example_project()
+    entry = index["docs/milestones/P1-M1-sample-milestone.md"]
+
+    assert entry["header"]["state"] == "done"
+
+
+# Each entry holds one fingerprint per paragraph of the body. The
+# valid sample has a heading and two paragraphs below its header.
+def test_scan_entry_has_paragraph_hashes():
+    index = scan_example_project()
+    entry = index["docs/sessions/2026-09-21-demo-001-valid-sample.md"]
+
+    assert len(entry["paragraphs"]) == 3
+
+
+# A file with a broken header still gets an entry, with an empty
+# header and its paragraphs.
+def test_scan_entry_for_broken_header_is_empty():
+    index = scan_example_project()
+    entry = index["docs/sessions/2026-09-21-demo-003-malformed-yaml.md"]
+
+    assert entry["header"] == {}
+    assert len(entry["paragraphs"]) > 0
 
 
 # A folder listed in ridge.yml that doesn't exist yet adds nothing,
@@ -199,3 +278,194 @@ def test_load_stops_on_a_damaged_index(tmp_path):
 
     with pytest.raises(SystemExit):
         load_index(index_path)
+
+
+# ---------- compare_indexes ----------
+#
+# These build small indexes by hand. compare_indexes only looks at
+# the entries, so it doesn't need real files.
+
+
+def entry(file_hash, modified=1.0):
+    # One index entry with only the parts compare_indexes looks at.
+    return {"size": 10, "modified": modified, "hash": file_hash}
+
+
+# A file that's only in this run's scan is new.
+def test_compare_finds_new_files():
+    old_index = {"docs/a.md": entry("aaa")}
+    new_index = {"docs/a.md": entry("aaa"), "docs/b.md": entry("bbb")}
+
+    result = compare_indexes(old_index, new_index)
+
+    assert result["new"] == ["docs/b.md"]
+
+
+# A file that was in the last index but is gone now was deleted.
+def test_compare_finds_deleted_files():
+    old_index = {"docs/a.md": entry("aaa"), "docs/b.md": entry("bbb")}
+    new_index = {"docs/a.md": entry("aaa")}
+
+    result = compare_indexes(old_index, new_index)
+
+    assert result["deleted"] == ["docs/b.md"]
+
+
+# Same file, different fingerprint, means its text changed.
+def test_compare_finds_changed_files():
+    old_index = {"docs/a.md": entry("aaa")}
+    new_index = {"docs/a.md": entry("zzz")}
+
+    result = compare_indexes(old_index, new_index)
+
+    assert result["changed"] == ["docs/a.md"]
+
+
+# A new last-changed time with the same fingerprint means the file
+# was saved or synced without its words changing. That isn't a
+# change.
+def test_compare_ignores_a_new_time_with_the_same_text():
+    old_index = {"docs/a.md": entry("aaa", modified=1.0)}
+    new_index = {"docs/a.md": entry("aaa", modified=99.0)}
+
+    result = compare_indexes(old_index, new_index)
+
+    assert result == {"new": [], "deleted": [], "changed": [], "renamed": []}
+
+
+# Each list comes back sorted, so the same two indexes always give
+# the same result.
+def test_compare_lists_are_sorted():
+    old_index = {}
+    new_index = {
+        "docs/c.md": entry("c"),
+        "docs/a.md": entry("a"),
+        "docs/b.md": entry("b"),
+    }
+
+    result = compare_indexes(old_index, new_index)
+
+    assert result["new"] == ["docs/a.md", "docs/b.md", "docs/c.md"]
+
+
+# The changed list is sorted too. With more than one changed file,
+# the order has to be the same every run. Eight files, so an
+# unsorted list can't come out in order by luck.
+def test_compare_changed_list_is_sorted():
+    names = ["h", "c", "f", "a", "g", "b", "e", "d"]
+    old_index = {f"docs/{name}.md": entry("before") for name in names}
+    new_index = {f"docs/{name}.md": entry("after") for name in names}
+
+    result = compare_indexes(old_index, new_index)
+
+    assert result["changed"] == sorted(old_index)
+
+
+# A file that disappeared from one path and showed up at another
+# with the same fingerprint was moved or renamed. It's reported as
+# one rename, old path then new path, and not as a delete plus a
+# new file.
+def test_compare_finds_renamed_files():
+    old_index = {"docs/old-name.md": entry("same")}
+    new_index = {"docs/new-name.md": entry("same")}
+
+    result = compare_indexes(old_index, new_index)
+
+    assert result["renamed"] == [["docs/old-name.md", "docs/new-name.md"]]
+    assert result["new"] == []
+    assert result["deleted"] == []
+
+
+# If a file was renamed and edited in the same week, the fingerprint
+# no longer matches, so there's no way to tell. It stays a delete
+# plus a new file.
+def test_compare_rename_with_edit_stays_new_and_deleted():
+    old_index = {"docs/old-name.md": entry("before")}
+    new_index = {"docs/new-name.md": entry("after")}
+
+    result = compare_indexes(old_index, new_index)
+
+    assert result["renamed"] == []
+    assert result["new"] == ["docs/new-name.md"]
+    assert result["deleted"] == ["docs/old-name.md"]
+
+
+# ---------- compare_entries ----------
+
+
+def full_entry(header, paragraphs):
+    # One index entry with a header and paragraph fingerprints.
+    return {
+        "size": 10,
+        "modified": 1.0,
+        "hash": "x",
+        "header": header,
+        "paragraphs": paragraphs,
+    }
+
+
+# A milestone moving from in-progress to done shows up as a header
+# change, with the old value and the new one.
+def test_compare_entries_finds_a_changed_field():
+    old_entry = full_entry({"id": "M3", "state": "in-progress"}, [])
+    new_entry = full_entry({"id": "M3", "state": "done"}, [])
+
+    result = compare_entries(old_entry, new_entry)
+
+    assert result["header_changes"] == {"state": ["in-progress", "done"]}
+
+
+# A field that wasn't there before shows None as its old value.
+def test_compare_entries_finds_an_added_field():
+    old_entry = full_entry({"id": "M3"}, [])
+    new_entry = full_entry({"id": "M3", "completed": "2026-10-18"}, [])
+
+    result = compare_entries(old_entry, new_entry)
+
+    assert result["header_changes"] == {"completed": [None, "2026-10-18"]}
+
+
+# A field that's gone now shows None as its new value.
+def test_compare_entries_finds_a_removed_field():
+    old_entry = full_entry({"id": "M3", "blocker": "waiting on M2"}, [])
+    new_entry = full_entry({"id": "M3"}, [])
+
+    result = compare_entries(old_entry, new_entry)
+
+    assert result["header_changes"] == {"blocker": ["waiting on M2", None]}
+
+
+# A paragraph added in the middle is reported by its position in
+# the new file, so later code can pull its text from the file.
+def test_compare_entries_finds_added_paragraphs():
+    old_entry = full_entry({}, ["p1", "p2", "p3"])
+    new_entry = full_entry({}, ["p1", "new", "p2", "p3"])
+
+    result = compare_entries(old_entry, new_entry)
+
+    assert result["added_paragraphs"] == [1]
+    assert result["removed_paragraph_count"] == 0
+
+
+# A removed paragraph's text is gone from the file, so all RIDGE can
+# say is how many were removed.
+def test_compare_entries_counts_removed_paragraphs():
+    old_entry = full_entry({}, ["p1", "p2", "p3"])
+    new_entry = full_entry({}, ["p1", "p3"])
+
+    result = compare_entries(old_entry, new_entry)
+
+    assert result["added_paragraphs"] == []
+    assert result["removed_paragraph_count"] == 1
+
+
+# Moving paragraphs around without changing their words isn't new
+# writing, so nothing is reported as added or removed.
+def test_compare_entries_ignores_reordered_paragraphs():
+    old_entry = full_entry({}, ["p1", "p2"])
+    new_entry = full_entry({}, ["p2", "p1"])
+
+    result = compare_entries(old_entry, new_entry)
+
+    assert result["added_paragraphs"] == []
+    assert result["removed_paragraph_count"] == 0
