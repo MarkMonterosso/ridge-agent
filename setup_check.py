@@ -26,7 +26,7 @@ from git.exc import InvalidGitRepositoryError, NoSuchPathError
 
 from config import MARKER_FILE_NAME, load_config, resolve_project_location
 from file_io import open_utf8_file
-from records import find_duplicate_records, read_records
+from records import DEFAULT_INCLUDED_PATTERNS, find_duplicate_records, read_records
 
 
 def check_marker_file(marker_file, project_location):
@@ -50,6 +50,18 @@ def check_marker_file(marker_file, project_location):
         except (InvalidGitRepositoryError, NoSuchPathError):
             findings.append(("ERR", f"git_repo isn't a git repo: {git_repo_path}"))
 
+    # included_patterns follows ADR-0006 too. Left out means the
+    # default is used. Present but blank is a mistake.
+    if "included_patterns" not in marker_file:
+        findings.append(
+            (
+                "INF",
+                f"No included_patterns set, so default patterns '{DEFAULT_INCLUDED_PATTERNS}' will be used.",
+            )
+        )
+    elif not marker_file.get("included_patterns"):
+        findings.append(("ERR", "included_patterns is in ridge.yml but has no value."))
+
     # conventions follows ADR-0006 too. Left out means no records
     # get read. A blank entry is a mistake. A folder that doesn't
     # exist yet is normal for a new project.
@@ -70,7 +82,7 @@ def check_marker_file(marker_file, project_location):
     return findings
 
 
-def check_records(project_location, conventions):
+def check_records(project_location, conventions, included_patterns):
     findings = []
     # Skip any blank entries here. check_marker_file() already
     # reported them.
@@ -79,7 +91,9 @@ def check_records(project_location, conventions):
         for record_type, folder_path in conventions.items()
         if folder_path
     }
-    kept_records, rejected_files = read_records(project_location, usable_conventions)
+    kept_records, rejected_files = read_records(
+        project_location, usable_conventions, included_patterns
+    )
 
     counts_by_type = Counter(record.get("type") for record in kept_records)
     counts_text = ", ".join(
@@ -150,7 +164,10 @@ def check_project(config_path, project):
 
     findings = check_marker_file(marker_file, project_location)
     conventions = marker_file.get("conventions") or {}
-    findings += check_records(project_location, conventions)
+    included_patterns = (
+        marker_file.get("included_patterns") or DEFAULT_INCLUDED_PATTERNS
+    )
+    findings += check_records(project_location, conventions, included_patterns)
     return project_location, findings
 
 

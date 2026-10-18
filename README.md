@@ -126,28 +126,21 @@ projects:
 - List as many projects as you like. RIDGE runs the same steps for
   each one.
 
-Your project folder needs a `ridge.yml` at its top level. The demo's
-`ridge.yml` is a working example to copy:
+Your project folder needs a `ridge.yml` at its top level. To make
+one, copy `ridge.example.yml` from this repo into your project
+folder, rename it `ridge.yml`, and change the values. Every option
+is explained in comments inside that file. The main ones:
 
-```yaml
-id: my-project                  # never changes, even if you rename the folder
-name: My Project
-git_repo: ../my-project-code    # optional. Leave this line out if the project
-                                 # has no git repo. If you include it, it has to
-                                 # point at a real repo, or RIDGE stops and tells
-                                 # you which project is wrong.
-site_slug: my-project           # which page on the site this project writes to
-conventions:                    # optional. Tells RIDGE which folder holds
-  session: docs/sessions/       # which kind of record.
-  decision: docs/decisions/
-  milestone: docs/milestones/
-```
+- `id` names the project and never changes, even if you rename the
+  folder.
+- `included_patterns` lists the file names RIDGE may read, such as
+  `"*.md"`. Anything that doesn't match is ignored. Leave it out to
+  read only markdown files.
+- `conventions` says which folder holds which kind of record. Name
+  your folders whatever you want. If a record file has no `type:`
+  line, RIDGE uses the type of the folder it's in.
 
-`conventions` is how RIDGE finds your records without assuming a
-folder layout. Each line names a record type, then the folder that
-holds it. Name your folders whatever you want. If a record file has
-no `type:` line, RIDGE uses the type of the folder it's in. A folder that doesn't exist yet is fine, because a new project
-may not have any records of that kind.
+Then run `py main.py --check` to confirm RIDGE can read it.
 
 ## Developing RIDGE
 
@@ -201,15 +194,18 @@ ruff check .
 | `file_io.py` | Shared file-reading helper, used by `config.py` and `records.py`, that always reads as UTF-8. |
 | `git_history.py` | Reads recent commit history from a project's code repo. |
 | `tests/` | The test suite. One file per module above (`test_config.py`, `test_file_io.py`, `test_records.py`, `test_git_history.py`, `test_setup_check.py`). |
-| `conftest.py` | Empty on purpose — its presence tells pytest where the project root is, so tests can import the modules above. |
+| `conftest.py` | Empty on purpose. Because it's here, pytest treats this folder as the project root, so the tests can import the modules above. |
+| `pytest.ini` | Test settings: one line per test, short failure messages. |
+| `config.example.yml` | Template for `config.yml`. Points at the demo project. |
+| `ridge.example.yml` | Template for a project's `ridge.yml`, with every option explained. |
 
 ### Logging conventions
 
 RIDGE tags its own console output so you can tell what matters at a glance:
 
-- `[INF]` — informational, nothing's wrong (e.g. no commits found in a window)
-- `[WRN]` — worth a look, but not fatal
-- `[ERR]` — something's actually broken
+- `[INF]` just so you know, nothing is wrong (for example, no commits found in the window)
+- `[WRN]` RIDGE will keep going, but take a look
+- `[ERR]` something is broken and needs fixing
 
 A real misconfiguration (a bad `git_repo` path, a missing `config.yml`) exits the program outright rather than logging `[ERR]` and continuing.
 

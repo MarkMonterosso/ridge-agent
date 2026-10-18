@@ -1,6 +1,6 @@
 # ============================================================
 # file_io.py
-# Low-level file reading shared by every other module.
+# Opens files for every other module, the same way each time.
 #
 # open_utf8_file() opens a file the same way everywhere: always
 # as UTF-8, and hands back the file's contents wrapped in an
@@ -15,9 +15,9 @@ from io import StringIO
 
 def open_utf8_file(file_path, mode="r"):
     try:
-        # Force UTF-8 explicitly — without it, open() falls back to
-        # the OS default (often cp1252 on Windows), which garbles any
-        # non-ASCII character like an em dash instead of reading it.
+        # Always read as UTF-8. Without it, open() uses the computer's
+        # default (often cp1252 on Windows), which garbles characters
+        # outside plain English, like accented letters.
         with open(file_path, mode, encoding="utf-8") as file:
             # Read the content now, while the real file is still open,
             # and hand back an in-memory copy instead. The real file

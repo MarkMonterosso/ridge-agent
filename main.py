@@ -24,7 +24,7 @@ from config import (
     resolve_project_location,
 )
 from git_history import get_git_history, resolve_git_repo_path
-from records import discover_records, find_duplicate_records
+from records import discover_records, find_duplicate_records, resolve_included_patterns
 from setup_check import run_setup_check
 
 if __name__ == "__main__":
@@ -58,7 +58,8 @@ if __name__ == "__main__":
 
         marker_file = read_marker(project_location / MARKER_FILE_NAME)
         conventions = marker_file.get("conventions", {})
-        records = discover_records(project_location, conventions)
+        included_patterns = resolve_included_patterns(marker_file, project_location)
+        records = discover_records(project_location, conventions, included_patterns)
         duplicate_ids = find_duplicate_records(records)
 
         git_repo_path = resolve_git_repo_path(marker_file, project_location)

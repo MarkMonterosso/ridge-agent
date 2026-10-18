@@ -2,24 +2,24 @@
 # config.example.yml
 #
 # Template for RIDGE's configuration. Copy this file to
-# config.yml and fill in your own values — config.yml is
-# gitignored and never committed, since it holds paths
-# specific to your own machine.
+# config.yml and fill in your own values. config.yml is
+# gitignored and never committed, because it holds paths for
+# your own machine.
 # ============================================================
 
 # Each project needs:
-#   project_path           the project's archive folder, not the
-#                           marker file itself — RIDGE looks for
-#                           that project's ridge.yml at the root
-#                           of whatever folder this points to
+#   project_path            the project's folder. RIDGE looks for
+#                           that project's ridge.yml at the top of
+#                           this folder. A relative path starts
+#                           from the folder this file is in.
 #   data_collection_range   how far back to look for git activity
 #
 # data_collection_range is handed straight to Python's timedelta,
 # so its keys are whatever timedelta itself accepts: weeks, days,
 # hours, minutes, seconds.
 #
-# List as many projects as you want — RIDGE runs this same
-# pipeline once for every project in the list.
+# List as many projects as you want. RIDGE runs the same steps
+# once for every project in the list.
 #
 # The project below is the public demo archive, ridge-agent-demo.
 # Clone it into the same parent folder as ridge-agent and this

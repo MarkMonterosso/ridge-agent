@@ -1,0 +1,53 @@
+# ============================================================
+# ridge.example.yml
+#
+# Template for a project's marker file. RIDGE looks for a file
+# named ridge.yml at the top of every project folder listed in
+# config.yml. This file tells RIDGE what the project is called
+# and where its notes live.
+#
+# To use it:
+#   1. Copy this file into the top of your project folder.
+#   2. Rename the copy to ridge.yml.
+#   3. Change the values below to match your project.
+#   4. Run `py main.py --check` from the ridge-agent folder.
+#
+# Lines marked "optional" can be left out. If you do include an
+# optional line, give it a value. A line with nothing after the
+# colon stops RIDGE with a message telling you which one.
+# ============================================================
+
+# Required. The project's id. It never changes, even if you rename
+# or move the project folder, because RIDGE uses it to keep track
+# of the project between runs.
+id: my-project
+
+# The project's name, as people should see it.
+name: My Project
+
+# Optional. Where the project's code repo is, relative to this
+# file. RIDGE reads its commit history. Leave this line out if
+# the project has no git repo.
+git_repo: ../my-project-code
+
+# Which page on the site this project's posts go to.
+site_slug: my-project
+
+# Optional. Which file names RIDGE may read inside the folders
+# listed under conventions. Anything that doesn't match is
+# ignored. Leave this line out to read only markdown files
+# ("*.md"). You can list more than one pattern, for example
+# "*.md" and "*.txt". "**/*.md" also looks inside subfolders.
+included_patterns:
+  - "*.md"
+
+# Optional. Which folder holds which kind of record. Each line is
+# a record type, then the folder, relative to this file. Name the
+# folders whatever you like. When a record file has no type: line
+# at the top, RIDGE uses the type of the folder it's in. A folder
+# that doesn't exist yet is fine, since a new project may not have
+# any records of that kind.
+conventions:
+  session: docs/sessions/
+  decision: docs/decisions/
+  milestone: docs/milestones/

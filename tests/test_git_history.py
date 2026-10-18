@@ -3,20 +3,17 @@
 # Tests for get_git_history and resolve_git_repo_path in
 # git_history.py.
 #
-# get_git_history is only ever called once git_repo has been
-# confirmed present, so any failure reaching a real repo is a
-# real misconfiguration — loud, not silently skipped. Both
-# exceptions are tested with tmp_path, a fresh, empty, throwaway
-# folder pytest hands each test, so these tests never touch a
-# real repo and never go stale with real commit history.
+# get_git_history only runs once git_repo is known to be set, so
+# failing to reach that repo is a setup mistake and the program
+# should stop. Those tests use tmp_path, an empty throwaway folder
+# pytest gives each test, so they never touch a real repo and never
+# depend on its real commit history.
 #
-# resolve_git_repo_path is what decides whether get_git_history
-# should even be called. No git_repo key at all is fine — not
-# every project tracks git history — so that case returns None
-# instead of failing. A git_repo key that's there but blank,
-# either as an empty string or as nothing after the colon, is a
-# real misconfiguration either way, so both of those exit loudly
-# too.
+# resolve_git_repo_path decides whether get_git_history gets called
+# at all. No git_repo key is fine, since not every project tracks
+# git history, so that case returns None. A git_repo key left blank,
+# as an empty string or with nothing after the colon, is a setup
+# mistake either way, so both stop the program.
 # ============================================================
 from datetime import timedelta
 
@@ -27,15 +24,15 @@ from git_history import get_git_history, resolve_git_repo_path
 
 
 # A path that exists but has no .git folder isn't a usable repo.
-# Once git_repo is specified, that's a real misconfiguration —
-# should exit loudly, not return an empty list quietly.
+# Once git_repo is set, that's a setup mistake, so the program
+# should stop and say so.
 def test_get_git_history_exits_on_non_git_folder(tmp_path):
     with pytest.raises(SystemExit):
         get_git_history(str(tmp_path), timedelta(weeks=1))
 
 
-# A path that doesn't exist at all is the same kind of failure —
-# also a real misconfiguration, also loud.
+# A path that doesn't exist at all is the same kind of mistake,
+# and should also stop the program.
 def test_get_git_history_exits_on_missing_path(tmp_path):
     missing_path = tmp_path / "does_not_exist"
     with pytest.raises(SystemExit):
@@ -62,8 +59,7 @@ def test_get_git_history_returns_commits(tmp_path):
 
 
 # No git_repo key at all just means this project isn't tracking
-# git history. Nothing wrong with that — should come back None,
-# not fail.
+# git history. That's fine, so it should come back None.
 def test_resolve_git_repo_path_returns_none_when_missing():
     marker_file = {}
     result = resolve_git_repo_path(marker_file, "some/project/location")
@@ -71,7 +67,7 @@ def test_resolve_git_repo_path_returns_none_when_missing():
 
 
 # git_repo written as a quoted empty string is one of the two
-# ways someone can leave it blank. Should exit loudly.
+# ways someone can leave it blank. The program should stop.
 def test_resolve_git_repo_path_exits_on_empty_string():
     marker_file = {"git_repo": ""}
     with pytest.raises(SystemExit):
@@ -79,9 +75,9 @@ def test_resolve_git_repo_path_exits_on_empty_string():
 
 
 # git_repo written with nothing after the colon is the other way
-# to leave it blank — YAML reads that in as None, not an empty
-# string, so this has to be checked separately from the case
-# above. Should exit loudly too.
+# to leave it blank. YAML reads that as None, which is different
+# from an empty string, so it needs its own check. The program
+# should stop here too.
 def test_resolve_git_repo_path_exits_on_none_value():
     marker_file = {"git_repo": None}
     with pytest.raises(SystemExit):

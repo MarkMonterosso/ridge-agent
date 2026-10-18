@@ -1,7 +1,8 @@
 # ============================================================
 # records.py
-# Reads a project's records: the markdown files in the folders
-# its ridge.yml lists under conventions.
+# Reads a project's records: the files in the folders its
+# ridge.yml lists under conventions, as long as their names match
+# one of the allowed patterns (ADR-0008).
 #
 # read_records() opens every file, works out what type of record
 # it is, checks it, and returns two lists: the records it kept
@@ -16,6 +17,7 @@
 # find_duplicate_records() has to wait until every record is
 # read, because it compares them against each other.
 # ============================================================
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -35,7 +37,9 @@ REQUIRED_FIELDS_BY_TYPE = {
     "decision": ["id", "date"],
     "milestone": ["id", "state"],
 }
+
 DEFAULT_REQUIRED_FIELDS = ["id"]
+DEFAULT_INCLUDED_PATTERNS = ["*.md"]
 
 
 class RecordLoader(yaml.SafeLoader):
@@ -75,7 +79,28 @@ def resolve_record_type(metadata, folder_type):
     return folder_type
 
 
+def resolve_included_patterns(marker_file, project_location):
+    # ridge.yml can list which file names RIDGE is allowed to read.
+    # This follows ADR-0006: no included_patterns line means the
+    # project uses the default, and a line left blank stops the
+    # program, because someone started setting it up and didn't
+    # finish.
+    if "included_patterns" not in marker_file:
+        return DEFAULT_INCLUDED_PATTERNS
+    else:
+        included_patterns = marker_file.get("included_patterns")
+
+    if included_patterns == "" or included_patterns is None:
+        print(
+            f"Marker file '{project_location}/ridge.yml' contains an empty 'included_patterns' key."
+        )
+        sys.exit(1)
+    return included_patterns
+
+
 def validate_record(metadata):
+    # Checks one record against the fields its type needs. Returns
+    # the reason it failed, or None if it passed.
     required_fields = REQUIRED_FIELDS_BY_TYPE.get(
         metadata.get("type"), DEFAULT_REQUIRED_FIELDS
     )
@@ -91,24 +116,32 @@ def validate_record(metadata):
     return None
 
 
-def read_records(project_location, conventions):
+def read_records(project_location, conventions, included_patterns):
     kept_records = []
     rejected_files = []
+
     for record_type, folder_path in conventions.items():
         folder = Path(project_location) / folder_path
         # A folder that doesn't exist yet is normal for a new
         # project (ADR-0006). There's nothing in it to read.
         if not folder.exists():
             continue
-        for record_file in sorted(folder.glob("*.md")):
+
+        # A set keeps one copy of each file, so a file that matches
+        # two patterns still only gets read once.
+        matching_files = set()
+
+        for pattern in included_patterns:
+            matching_files.update(folder.glob(pattern))
+
+        for record_file in sorted(matching_files):
             with open_utf8_file(record_file, "r") as file:
                 try:
                     post = frontmatter.load(file, handler=RecordYAMLHandler())
                 except yaml.YAMLError as err:
                     # One broken file shouldn't stop the rest of the
-                    # project from being read.
-                    # YAML's error message runs over several lines. Squeeze
-                    # it onto one so it reads cleanly in a list.
+                    # project from being read. YAML's error message runs
+                    # over several lines, so this puts it on one.
                     yaml_error = " ".join(str(err).split())
                     reason = f"the header block isn't valid YAML: {yaml_error}"
                     rejected_files.append((record_file, reason))
@@ -123,14 +156,18 @@ def read_records(project_location, conventions):
     return kept_records, rejected_files
 
 
-def discover_records(project_location, conventions):
-    kept_records, rejected_files = read_records(project_location, conventions)
+def discover_records(project_location, conventions, included_patterns):
+    kept_records, rejected_files = read_records(
+        project_location, conventions, included_patterns
+    )
     for record_file, reason in rejected_files:
         print(f"[WRN] Skipped {record_file}: {reason}")
     return kept_records
 
 
 def find_duplicate_records(records):
+    # Returns every record whose id was already used by an earlier
+    # record. The first record with each id isn't included.
     all_found_ids = set()
     duplicates = []
     for record in records:
